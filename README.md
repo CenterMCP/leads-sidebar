@@ -59,12 +59,20 @@ The `/mcp` URL is a protocol endpoint, not a standalone web page. The Go server 
 
 ```json
 {
-  "ui": { "resourceUri": "ui://leads-sidebar/pipeline-v1", "visibility": ["app", "model"] },
+  "ui": { "resourceUri": "ui://leads-sidebar/pipeline-v2", "visibility": ["app", "model"] },
   "openai/ui": { "entrypoints": [{ "type": "global" }] }
 }
 ```
 
 `leads.panel` uses `type: thread` for a conversation panel. Both use the same bundled UI. See the [official extension guide](https://developers.openai.com/plugins/build/extensions).
+
+## Fullscreen in Claude and other MCP Apps hosts
+
+The app declares `availableDisplayModes: ["inline", "fullscreen"]` in the standard MCP Apps initialization, alongside the ChatGPT resource metadata. Use the **Fullscreen** button in the header to call `app.requestDisplayMode({ mode: "fullscreen" })`. **Exit fullscreen** requests inline mode again. Host-initiated changes also update the button.
+
+Claude supports interactive connectors in inline and fullscreen views ([Claude documentation](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp)). The host controls which modes are available for the current view. If fullscreen is explicitly unavailable, the button is disabled; rejected requests show an error and retain the actual host mode. The app cannot force expansion beyond the host's iframe.
+
+After upgrading to 0.2.0, rebuild/redeploy the Go executable or Docker image, refresh the connector/tool metadata, and open a fresh Lead Pipeline view. The UI resource changed to `pipeline-v2` to avoid cached copies of the old app. The display-mode workflow is covered by an MCP host browser harness; the actual Claude client still needs a manual check.
 
 ## Tools
 

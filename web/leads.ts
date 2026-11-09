@@ -1,4 +1,4 @@
-import { App } from '@modelcontextprotocol/ext-apps';
+import { App, type McpUiHostContext } from '@modelcontextprotocol/ext-apps';
 
 type Lead = { id: string; name: string; company: string; email: string; owner: string; value: number; stage: string; updatedAt: string; version: number };
 type Page = { leads: Lead[]; page: number; pageSize: number; total: number; totalPages: number; query: string; stage: string; stages: string[]; currency: string; summary: { total: number; pipelineValue: number; stageCounts: Record<string, number> } };
@@ -7,11 +7,45 @@ const rows = $<HTMLTableSectionElement>('rows');
 const search = $<HTMLInputElement>('search');
 const filter = $<HTMLSelectElement>('stage-filter');
 const status = $('status');
-const app = new App({ name: 'Lead Pipeline', version: '0.1.0' });
+const app = new App({ name: 'Lead Pipeline', version: '0.2.0' }, { availableDisplayModes: ['inline', 'fullscreen'] });
 let data: Page | undefined;
 let connected = false;
 let busy = false;
 let loaded = false;
+let displayPending = false;
+let displayMode: 'inline' | 'fullscreen' | 'pip' = 'inline';
+let availableModes: McpUiHostContext['availableDisplayModes'];
+const displayButton = $<HTMLButtonElement>('display-mode');
+function updateDisplayButton() {
+  const fullscreen = displayMode === 'fullscreen';
+  const target = fullscreen ? 'inline' : 'fullscreen';
+  const supported = availableModes === undefined || availableModes.includes(target);
+  displayButton.hidden = !connected;
+  displayButton.disabled = !connected || busy || displayPending || !supported;
+  displayButton.textContent = displayPending ? 'Switching view…' : fullscreen ? 'Exit fullscreen' : supported ? 'Fullscreen' : 'Fullscreen unavailable';
+  displayButton.title = supported ? '' : `This host does not offer ${target} mode.`;
+  displayButton.setAttribute('aria-pressed', String(fullscreen));
+  document.documentElement.dataset.displayMode = displayMode;
+}
+function applyHostContext(context: Partial<McpUiHostContext>) {
+  if (context.theme) document.documentElement.dataset.theme = context.theme;
+  if (context.displayMode) displayMode = context.displayMode;
+  if (context.availableDisplayModes !== undefined) availableModes = context.availableDisplayModes;
+  updateDisplayButton();
+}
+displayButton.onclick = async () => {
+  if (displayButton.disabled || displayPending) return;
+  const target = displayMode === 'fullscreen' ? 'inline' : 'fullscreen';
+  displayPending = true; updateDisplayButton();
+  try {
+    const result = await app.requestDisplayMode({ mode: target }, { timeout: 10_000 });
+    displayMode = result.mode;
+    if (result.mode !== target) message(`The host kept the app in ${result.mode} mode. ${target === 'fullscreen' ? 'Fullscreen is not available in this view.' : 'Use the host’s controls to leave fullscreen.'}`, true);
+    else message(target === 'fullscreen' ? 'Fullscreen view opened.' : 'Returned to inline view.');
+  } catch (error) {
+    message(`Could not change the display mode: ${error instanceof Error ? error.message : String(error)}`, true);
+  } finally { displayPending = false; updateDisplayButton(); }
+};
 const colors = ['#8291ad', '#688ce0', '#8b71d0', '#bb77aa', '#daac49', '#dc8654', '#4baf91', '#218578'];
 function node<K extends keyof HTMLElementTagNameMap>(tag: K, text = '', className = '') {
   const n = document.createElement(tag); n.textContent = text; n.className = className; return n;
@@ -22,6 +56,7 @@ function lock(value: boolean) {
   document.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement>('button,input,select').forEach(n => n.disabled = value || !connected);
   $('table-wrap').setAttribute('aria-busy', String(value));
   if (!value && data) updatePages(data);
+  updateDisplayButton();
 }
 function money(value: number) { return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value); }
 function parse(value: unknown): Page {
@@ -101,10 +136,10 @@ $('search-form').onsubmit = e => { e.preventDefault(); void load(1); };
 filter.onchange = () => void load(1);
 $('refresh').onclick = () => void load(data && search.value.trim() === data.query && filter.value === data.stage ? data.page : 1);
 app.ontoolresult = r => { if (loaded || busy) return; if (r.isError) { message('Could not open the lead workspace. Use Refresh to retry.', true); return; } try { render(parse(r.structuredContent)); } catch (error) { message(String(error), true); } };
-app.onhostcontextchanged = context => { if (context.theme) document.documentElement.dataset.theme = context.theme; };
+app.onhostcontextchanged = applyHostContext;
 async function connect() {
   if (window.parent === window) { message('Open Lead Pipeline through a ChatGPT sidebar plugin or an MCP Apps host.', true); return; }
-  try { await app.connect(); connected = true; document.documentElement.dataset.theme = app.getHostContext()?.theme ?? 'light'; lock(false); await load(1); }
+  try { await app.connect(); connected = true; applyHostContext(app.getHostContext() ?? {}); lock(false); await load(1); }
   catch (error) { message(error instanceof Error ? error.message : String(error), true); }
 }
 void connect();

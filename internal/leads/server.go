@@ -10,7 +10,7 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-const ResourceURI = "ui://leads-sidebar/pipeline-v1"
+const ResourceURI = "ui://leads-sidebar/pipeline-v2"
 const MIMEType = "text/html;profile=mcp-app"
 
 //go:embed app.html
