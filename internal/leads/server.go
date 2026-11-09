@@ -10,7 +10,7 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-const ResourceURI = "ui://leads-sidebar/pipeline-v2"
+const ResourceURI = "ui://leads-sidebar/pipeline-v3"
 const MIMEType = "text/html;profile=mcp-app"
 
 //go:embed app.html
@@ -34,7 +34,7 @@ func NewServer(version string, store *Store) *server.MCPServer {
 		return result(page), nil
 	}
 	for _, entry := range []struct{ name, title, kind string }{{"leads.open", "Lead Pipeline", "global"}, {"leads.panel", "Lead Pipeline", "thread"}} {
-		tool := mcp.NewTool(entry.name, mcp.WithToolTitle(entry.title), mcp.WithDescription("Open the lead pipeline. Browse 150 mock leads, 50 per page, and move their sales stages."), mcp.WithSchemaAdditionalProperties(false), mcp.WithReadOnlyHintAnnotation(true), mcp.WithDestructiveHintAnnotation(false), mcp.WithOpenWorldHintAnnotation(false), mcp.WithToolIcons(icon))
+		tool := mcp.NewTool(entry.name, mcp.WithToolTitle(entry.title), mcp.WithDescription("Open the lead pipeline. Browse 150 mock leads, 50 per page, in Table or Kanban view. Move stages with a selector or drag cards between Kanban columns."), mcp.WithSchemaAdditionalProperties(false), mcp.WithReadOnlyHintAnnotation(true), mcp.WithDestructiveHintAnnotation(false), mcp.WithOpenWorldHintAnnotation(false), mcp.WithToolIcons(icon))
 		tool.Meta = mcp.NewMetaFromMap(map[string]any{"ui": map[string]any{"resourceUri": ResourceURI, "visibility": []string{"app", "model"}}, "openai/ui": map[string]any{"entrypoints": []any{map[string]any{"type": entry.kind}}}})
 		s.AddTool(tool, open)
 	}

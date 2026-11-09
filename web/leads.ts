@@ -7,11 +7,13 @@ const rows = $<HTMLTableSectionElement>('rows');
 const search = $<HTMLInputElement>('search');
 const filter = $<HTMLSelectElement>('stage-filter');
 const status = $('status');
-const app = new App({ name: 'Lead Pipeline', version: '0.2.0' }, { availableDisplayModes: ['inline', 'fullscreen'] });
+const app = new App({ name: 'Lead Pipeline', version: '0.3.0' }, { availableDisplayModes: ['inline', 'fullscreen'] });
 let data: Page | undefined;
 let connected = false;
 let busy = false;
 let loaded = false;
+let currentView: 'table' | 'kanban' = 'table';
+let draggedLeadId: string | null = null;
 let displayPending = false;
 let displayMode: 'inline' | 'fullscreen' | 'pip' = 'inline';
 let availableModes: McpUiHostContext['availableDisplayModes'];
@@ -55,6 +57,8 @@ function lock(value: boolean) {
   busy = value;
   document.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement>('button,input,select').forEach(n => n.disabled = value || !connected);
   $('table-wrap').setAttribute('aria-busy', String(value));
+  $('kanban-board').setAttribute('aria-busy', String(value));
+  document.querySelectorAll<HTMLElement>('.lead-card').forEach(card => { card.draggable = connected && !value; card.setAttribute('aria-disabled', String(value || !connected)); });
   if (!value && data) updatePages(data);
   updateDisplayButton();
 }
@@ -81,6 +85,75 @@ function updatePages(p: Page) {
   for (let n = 1; n <= p.totalPages; n++) { const b = button(String(n), n, false); b.setAttribute('aria-label', `Page ${n}`); if (n === p.page) b.setAttribute('aria-current', 'page'); }
   button('Next →', p.page + 1, p.page === p.totalPages);
 }
+function setView(view: 'table' | 'kanban') {
+  currentView = view;
+  $('table-wrap').hidden = view !== 'table';
+  $('kanban-board').hidden = view !== 'kanban';
+  $('kanban-hint').hidden = view !== 'kanban';
+  $('view-table').setAttribute('aria-pressed', String(view === 'table'));
+  $('view-kanban').setAttribute('aria-pressed', String(view === 'kanban'));
+}
+$('view-table').onclick = () => { if (!busy) setView('table'); };
+$('view-kanban').onclick = () => { if (!busy) setView('kanban'); };
+function clearDrag() {
+  draggedLeadId = null;
+  document.querySelectorAll('.dragging,.drop-target').forEach(el => el.classList.remove('dragging', 'drop-target'));
+}
+function renderBoard(p: Page) {
+  clearDrag();
+  const board = $('kanban-board'); board.replaceChildren();
+  p.stages.forEach((stage, index) => {
+    const leads = p.leads.filter(lead => lead.stage === stage);
+    const column = node('section', '', 'kanban-column'); column.dataset.stage = stage;
+    column.setAttribute('aria-labelledby', `column-title-${index}`);
+    column.style.setProperty('--stage-color', colors[index]);
+    const heading = node('div', '', 'column-heading');
+    const title = node('h3', stage); title.id = `column-title-${index}`;
+    const count = node('span', String(leads.length), 'column-count'); count.title = 'Leads on this page';
+    heading.append(title, count);
+    const subtotal = node('p', `${money(leads.reduce((sum, lead) => sum + lead.value, 0))} · this page`, 'column-subtotal');
+    const list = node('div', '', 'kanban-list'); list.tabIndex = 0; list.setAttribute('aria-label', `${stage} leads on this page`);
+    for (const lead of leads) {
+      const card = node('article', '', 'lead-card'); card.dataset.leadId = lead.id;
+      card.draggable = connected && !busy; card.setAttribute('aria-label', `${lead.name}, ${lead.company}`);
+      const top = node('div', '', 'card-top'); top.append(node('span', lead.id, 'card-id'), node('span', '⠿', 'drag-handle'));
+      const contact = node('div', '', 'contact');
+      const avatar = node('span', lead.name.split(' ').map(n => n[0]).slice(0, 2).join(''), 'avatar');
+      const details = node('div'); details.append(node('div', lead.name, 'name'), node('div', lead.company, 'card-company')); contact.append(avatar, details);
+      const email = node('p', lead.email, 'card-email');
+      const bottom = node('div', '', 'card-bottom'); bottom.append(node('span', money(lead.value), 'value'), node('span', lead.owner, 'owner'));
+      const label = node('label', 'Move to', 'move-label');
+      const select = node('select', '', 'stage-select'); select.setAttribute('aria-label', `Move ${lead.name} to stage`);
+      p.stages.forEach(s => select.add(new Option(s, s))); select.value = lead.stage;
+      select.disabled = !connected || busy; select.onchange = () => void move(lead, select.value); label.append(select);
+      card.append(top, contact, email, bottom, label);
+      card.ondragstart = event => {
+        if (!connected || busy || (event.target instanceof Element && event.target.closest('select,button,input'))) { event.preventDefault(); return; }
+        draggedLeadId = lead.id;
+        event.dataTransfer?.setData('text/plain', lead.id);
+        if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+        card.classList.add('dragging');
+      };
+      card.ondragend = clearDrag;
+      list.append(card);
+    }
+    if (!leads.length) list.append(node('p', 'Drop a lead here', 'column-empty'));
+    column.ondragover = event => {
+      if (!draggedLeadId || busy) return;
+      event.preventDefault(); if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+      document.querySelectorAll('.drop-target').forEach(el => { if (el !== column) el.classList.remove('drop-target'); });
+      column.classList.add('drop-target');
+    };
+    column.ondragleave = event => { if (!(event.relatedTarget instanceof Node) || !column.contains(event.relatedTarget)) column.classList.remove('drop-target'); };
+    column.ondrop = event => {
+      if (!draggedLeadId || busy) return;
+      event.preventDefault();
+      const lead = data?.leads.find(lead => lead.id === draggedLeadId); clearDrag();
+      if (lead && lead.stage !== stage) void move(lead, stage);
+    };
+    column.append(heading, subtotal, list); board.append(column);
+  });
+}
 function render(p: Page) {
   data = p;
   $('total').textContent = String(p.summary.total); $('pipeline-value').textContent = money(p.summary.pipelineValue);
@@ -106,11 +179,12 @@ function render(p: Page) {
   }
   const start = p.total ? (p.page - 1) * 50 + 1 : 0;
   $('range').textContent = `Showing ${start}–${Math.min(p.page * 50, p.total)} of ${p.total} leads · 50 per page`;
+  renderBoard(p); setView(currentView);
   updatePages(p);
 }
 async function fetchPage(page: number, scroll: boolean) {
   const next = parse(await call('leads.list', { page, query: search.value.trim(), stage: filter.value }));
-  render(next); loaded = true; if (scroll) $('table-wrap').scrollTop = 0;
+  render(next); loaded = true; if (scroll) { $('table-wrap').scrollTop = 0; document.querySelectorAll('.kanban-list').forEach(list => list.scrollTop = 0); }
 }
 async function load(page = data?.page ?? 1) {
   if (busy || !connected) return;

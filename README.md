@@ -59,12 +59,20 @@ The `/mcp` URL is a protocol endpoint, not a standalone web page. The Go server 
 
 ```json
 {
-  "ui": { "resourceUri": "ui://leads-sidebar/pipeline-v2", "visibility": ["app", "model"] },
+  "ui": { "resourceUri": "ui://leads-sidebar/pipeline-v3", "visibility": ["app", "model"] },
   "openai/ui": { "entrypoints": [{ "type": "global" }] }
 }
 ```
 
 `leads.panel` uses `type: thread` for a conversation panel. Both use the same bundled UI. See the [official extension guide](https://developers.openai.com/plugins/build/extensions).
+
+## Kanban board
+
+Use the **Table / Kanban** switch above the lead list. Both views use the same saved leads and preserve your current page, search, stage filter, and fullscreen state. The board shows the current page of up to 50 leads across all eight stage columns; column counts and subtotals describe this page. The summary cards above describe the entire pipeline.
+
+Drag a lead card to any stage column to move it, including empty columns. Each card also has a **Move to** selector for keyboard and touch use. Moves use the same version-checked server operation as the table. A failed save leaves the lead in its original stage and shows an error; Refresh reloads the saved data. Under an active stage filter, successfully moved leads disappear from the filtered results when they no longer match.
+
+Upgrade to 0.3.0 by rebuilding/redeploying the server or Docker image, refreshing connector metadata, and opening a new view. The UI resource is now `pipeline-v3`.
 
 ## Fullscreen in Claude and other MCP Apps hosts
 
@@ -72,7 +80,7 @@ The app declares `availableDisplayModes: ["inline", "fullscreen"]` in the standa
 
 Claude supports interactive connectors in inline and fullscreen views ([Claude documentation](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp)). The host controls which modes are available for the current view. If fullscreen is explicitly unavailable, the button is disabled; rejected requests show an error and retain the actual host mode. The app cannot force expansion beyond the host's iframe.
 
-After upgrading to 0.2.0, rebuild/redeploy the Go executable or Docker image, refresh the connector/tool metadata, and open a fresh Lead Pipeline view. The UI resource changed to `pipeline-v2` to avoid cached copies of the old app. The display-mode workflow is covered by an MCP host browser harness; the actual Claude client still needs a manual check.
+After upgrading, rebuild/redeploy the Go executable or Docker image, refresh the connector/tool metadata, and open a fresh Lead Pipeline view. Versioned UI resources avoid cached copies of the old app. The display-mode workflow is covered by an MCP host browser harness; the actual Claude client still needs a manual check.
 
 ## Tools
 
@@ -110,7 +118,7 @@ npm run test:browser
 BROWSER_EXECUTABLE='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' npm run test:browser
 ```
 
-The browser test checks three pages of 50, boundary pagination buttons, persistent stage changes, failed-save recovery and retry, search, no results, and stage filters. Go tests cover pagination without duplicates, all eight stages, persistence across reopen, concurrent updates, stale versions, failed writes, validation, and sidebar tool/resource metadata.
+The browser test checks three pages of 50, boundary pagination buttons, persistent stage changes, failed-save recovery and retry, search, no results, stage filters, Table/Kanban switching, real drag-and-drop, empty-column drops, and card stage selectors. Go tests cover pagination without duplicates, all eight stages, persistence across reopen, concurrent updates, stale versions, failed writes, validation, and sidebar tool/resource metadata.
 
 After changing `web/`, run `npm run build:ui` and keep `internal/leads/app.html` updated. The Go executable embeds the UI and needs no Node runtime or external scripts. The layout supports light/dark host themes, horizontal table scrolling on narrow screens, labeled controls, and live status messages.
 

@@ -1,6 +1,6 @@
 {
   "name": "leads-sidebar",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Manage a mock lead pipeline from the ChatGPT sidebar.",
   "author": {
     "name": "Center"
