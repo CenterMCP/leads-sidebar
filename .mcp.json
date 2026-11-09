@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "leads-sidebar": {
+      "command": "./build/leads-sidebar",
+      "args": [
+        "--stdio"
+      ],
+      "cwd": "."
+    }
+  }
+}

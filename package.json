@@ -1,0 +1,22 @@
+{
+  "name": "leads-sidebar",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:ui": "node scripts/build-ui.mjs",
+    "typecheck": "tsc --noEmit",
+    "build": "npm run typecheck && npm run build:ui && go build -o build/leads-sidebar ./cmd/server",
+    "test": "go test -race ./...",
+    "start": "go run ./cmd/server",
+    "test:browser": "node scripts/browser-smoke.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/ext-apps": "2.0.4"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "playwright": "1.65.0",
+    "typescript": "7.0.2"
+  }
+}
